@@ -43,8 +43,6 @@ class RandomGenerator:
         self.tokenizer.pad_token = self.tokenizer.eos_token
         self.model = GPT2LMHeadModel.from_pretrained(model_name)
         self.model.to(self.device)
-        
-        # optimizer 초기화 추가
         self.optimizer = None
     
     def init_optimizer(self, learning_rate=5e-5):
@@ -115,7 +113,7 @@ class RandomGenerator:
                     
                     pbar.set_description(f"Total Progress (Batch {batch_idx+1}/{n_batches})")
                     
-                    # 배치 전체를 한 번에 처리
+                    # Process the entire batch at once
                     if condition:
                         input_text = [condition] * current_batch_size
                     else:

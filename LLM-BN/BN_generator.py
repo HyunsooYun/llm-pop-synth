@@ -113,7 +113,7 @@ class BNGenerator:
                     
                     pbar.set_description(f"Total Progress (Batch {batch_idx+1}/{n_batches})")
                     
-                    # 배치 전체를 한 번에 처리
+                    # Process the entire batch at once
                     if condition:
                         input_text = [condition] * current_batch_size
                     else:

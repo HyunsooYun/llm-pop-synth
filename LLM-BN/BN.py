@@ -13,16 +13,16 @@ from pgmpy.models import BayesianModel
 
 def learn_bn_structure(data: pd.DataFrame, scoring_method: str = 'bic', max_indegree: int = None, verbose: bool = False):
     """
-    주어진 데이터(data)를 사용하여 Bayesian Network 구조를 학습합니다.
-    
+    Learns the structure of a Bayesian Network using the given data.
+
     Parameters:
-      - data: pandas DataFrame (범주형 변수로 변환되어 있어야 함)
-      - scoring_method: 'bic' 또는 'k2' (점수 기반 구조 학습)
-      - max_indegree: 각 노드의 최대 부모 수 제한 (optional)
-      - verbose: True이면 학습 과정의 로그 출력
-    
+      - data: pandas DataFrame (must be converted to categorical variables)
+      - scoring_method: 'bic' or 'k2' (score-based structure learning)
+      - max_indegree: optional limit on the maximum number of parents per node
+      - verbose: if True, prints logs during the learning process
+
     Returns:
-      - bn_model: 학습된 pgmpy.models.BayesianModel (DAG)
+      - bn_model: learned pgmpy.models.BayesianModel (DAG)
     """
     if scoring_method.lower() == 'bic':
         scorer = BicScore(data)
@@ -31,7 +31,6 @@ def learn_bn_structure(data: pd.DataFrame, scoring_method: str = 'bic', max_inde
     else:
         raise ValueError("scoring_method must be either 'bic' or 'k2'")
     
-    # HillClimbSearch 생성 시 scoring_method 인자는 제거합니다.
     hc = HillClimbSearch(data)
     if max_indegree is not None:
         bn_model = hc.estimate(scoring_method=scorer, max_indegree=max_indegree)
@@ -45,15 +44,15 @@ def learn_bn_structure(data: pd.DataFrame, scoring_method: str = 'bic', max_inde
 
 def get_topological_order(bn_model, randomize: bool = False):
     """
-    학습된 BN의 DAG에 대해 토폴로지 정렬을 수행하여 feature 순서를 도출합니다.
-    randomize=True이면, in-degree 0 노드들 사이에 무작위성을 부여합니다.
-    
+    Performs topological sorting on the DAG of a trained Bayesian Network to determine the feature order.
+    If randomize=True, introduces randomness among nodes with in-degree 0.
+
     Parameters:
       - bn_model: pgmpy.models.BayesianModel
-      - randomize: Boolean, 무작위성을 부여할지 여부
-    
+      - randomize: Boolean, whether to introduce randomness
+
     Returns:
-      - order: 토폴로지 정렬된 feature 리스트
+      - order: list of features in topologically sorted order
     """
     import networkx as nx
     import random
@@ -87,7 +86,7 @@ def visualize_bn_plotly_dot(bn_model, title="Learned Bayesian Network (Plotly wi
     try:
         pos = nx.nx_agraph.graphviz_layout(G, prog='dot')
     except ImportError:
-        print("pygraphviz가 설치되어 있지 않습니다. 기본 spring_layout 사용.")
+        print("pygraphviz is not installed. Using default spring_layout instead.")
         pos = nx.spring_layout(G, seed=42)
     
     edge_x = []
@@ -145,42 +144,43 @@ def visualize_bn_plotly_dot(bn_model, title="Learned Bayesian Network (Plotly wi
 
 def learn_bn_from_csv(csv_file: str, expected_columns: list, fill_missing: bool = True) -> pd.DataFrame:
     """
-    CSV 파일에서 데이터를 읽어, 기대하는 컬럼들만 선택하고 결측치 처리를 수행한 후,
-    범주형 변수(문자열)로 변환한 DataFrame을 반환합니다.
-    
+    Reads data from a CSV file, selects only the expected columns, handles missing values,
+    and returns a DataFrame with categorical (string) variables.
+
     Parameters:
-      - csv_file: CSV 파일 경로
-      - expected_columns: 사용할 컬럼 리스트
-      - fill_missing: True이면, 결측치를 "None" 문자열로 대체
-      
+      - csv_file: path to the CSV file
+      - expected_columns: list of columns to use
+      - fill_missing: if True, replaces missing values with the string "None"
+
     Returns:
-      - data: pandas DataFrame (범주형)
+      - data: pandas DataFrame (categorical)
     """
     data = pd.read_csv(csv_file)
     missing = set(expected_columns) - set(data.columns)
     if missing:
-        raise ValueError("다음 컬럼들이 누락되었습니다: " + ", ".join(missing))
+        raise ValueError("The following columns are missing: " + ", ".join(missing))
     data = data[expected_columns]
     if fill_missing:
         for col in expected_columns:
             data[col] = data[col].fillna("None")
-    # 모든 값을 문자열로 변환하여 범주형 변수로 처리
+    # Convert all values to strings to treat them as categorical variables
     data = data.astype(str)
     return data
 
 def sample_topological_order(bn_model):
     """
-    BN 모델의 DAG에서 가능한 valid한 선형 확장 중 하나를 무작위로 샘플링합니다.
-    BN의 부분 순서를 만족하는 여러 선형 확장 중 하나를 반환합니다.
+    Randomly samples one valid linear extension from the DAG of the BN model.
+    Returns one of the many linear extensions that satisfy the partial order of the BN.
     """
-    # BN 모델의 에지들을 사용해 NetworkX DiGraph를 생성합니다.
+
+    # Create a NetworkX DiGraph using the edges of the BN model.
     G = nx.DiGraph(bn_model.edges())
     if not nx.is_directed_acyclic_graph(G):
         raise ValueError("Learned BN structure is not a DAG!")
     
     order = []
     G_copy = G.copy()
-    # G_copy에서 in-degree가 0인 노드들 중 하나를 무작위로 선택해 선형 확장을 구성합니다.
+    # # Randomly select one node with in-degree 0 from G_copy to build the linear extension.
     while G_copy.nodes():
         zero_in_degree = [node for node in G_copy.nodes() if G_copy.in_degree(node) == 0]
         selected = random.choice(zero_in_degree)
@@ -190,74 +190,73 @@ def sample_topological_order(bn_model):
 
 def sample_topological_order_random_path(bn_model):
     """
-    BN 모델의 DAG에서 무작위 경로를 따라가며 토폴로지 순서를 생성합니다.
-    각 단계에서 현재 노드의 outgoing 엣지 중 하나를 무작위로 선택하고,
-    선택되지 않은 다른 엣지들은 무시합니다.
-    
+    Generates a topological order by following a random path in the DAG of the BN model.
+    At each step, one of the current node's outgoing edges is randomly selected,
+    and all other unselected edges are ignored.
+
     Parameters:
       - bn_model: pgmpy.models.BayesianModel
-    
+
     Returns:
-      - order: 토폴로지 정렬된 노드 리스트
+      - order: list of nodes in topologically sorted order
     """
     import random
     import networkx as nx
-    
-    # BN 모델의 엣지들을 사용해 NetworkX DiGraph 생성
+
+    # Create a NetworkX DiGraph using the edges from the BN model
     G = nx.DiGraph(bn_model.edges())
     if not nx.is_directed_acyclic_graph(G):
         raise ValueError("Learned BN structure is not a DAG!")
-    
-    # 난수 생성기 재설정
+
+    # Reset the random seed
     random.seed()
-    
-    # 결과 순서를 저장할 리스트
+
+    # List to store the resulting topological order
     order = []
-    
-    # 작업용 그래프 복사
+
+    # Copy of the graph for modification
     G_work = G.copy()
-    
-    # 모든 노드가 처리될 때까지 반복
+
+    # Repeat until all nodes are processed
     while G_work.nodes():
-        # 현재 in-degree=0인 노드들 찾기
+        # Find nodes with in-degree 0
         zero_in_degree = [node for node in G_work.nodes() if G_work.in_degree(node) == 0]
-        
+
         if not zero_in_degree:
-            # 이론적으로 DAG에서는 발생하지 않아야 하지만, 안전장치로 추가
+            # Should not happen in a DAG, but added as a safeguard
             break
-        
-        # in-degree=0인 노드들 중 하나를 무작위로 선택
+
+        # Randomly select one node from the zero in-degree nodes
         current = random.choice(zero_in_degree)
         order.append(current)
-        
-        # 현재 경로를 따라갈 포인터
+
+        # Pointer to follow the path
         current_node = current
-        
-        # 경로 따라가기
+
+        # Follow the path
         path_continues = True
         while path_continues:
-            # 현재 노드에서 나가는 엣지(다음으로 갈 수 있는 노드들)
+            # Get successors (outgoing neighbors) of the current node
             neighbors = list(G_work.successors(current_node))
-            
-            # 나가는 엣지가 있으면 하나를 무작위로 선택
+
             if neighbors:
-                # 무작위로 하나의 이웃 노드 선택
+                # Randomly select one of the outgoing neighbors
                 next_node = random.choice(neighbors)
-                
-                # 현재 노드 제거 (이전 선택으로 돌아가지 않도록)
+
+                # Remove current node to avoid revisiting it
                 G_work.remove_node(current_node)
-                
-                # 선택된 다음 노드가 이제 진입차수가 0인지 확인
+
+                # Check if the selected next node now has in-degree 0
                 if G_work.in_degree(next_node) == 0:
-                    # 경로 계속 따라가기
+                    # Continue along the path
                     order.append(next_node)
                     current_node = next_node
                 else:
-                    # 다음 노드의 진입차수가 아직 0이 아님 -> 경로 종료
+                    # Cannot proceed; next node still has other parents
                     path_continues = False
             else:
-                # 더 이상 나가는 엣지가 없음 -> 현재 노드 제거 후 경로 종료
+                # No more outgoing edges; remove current node and stop path
                 G_work.remove_node(current_node)
                 path_continues = False
-    
+
     return order
