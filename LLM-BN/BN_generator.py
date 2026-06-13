@@ -117,7 +117,7 @@ class BNGenerator:
                     if condition:
                         input_text = [condition] * current_batch_size
                     else:
-                        input_text = ["Education stauts is"] * current_batch_size
+                        input_text = ["Education status is"] * current_batch_size
                         
                     inputs = self.tokenizer(
                         input_text,
